@@ -1,0 +1,5 @@
+- [ ] Build FloodSense AI dashboard shell with Signal Range styling and responsive navigation
+- [ ] Add demo login and role selection flow
+- [ ] Add interactive prediction form, risk calculation, explanation, charts, map, alerts, evacuation, restoration, analytics, authority views
+- [ ] Add complete scenario workflow, notifications, toasts, and safety labels
+- [ ] Validate the live preview and fix any runtime issues
