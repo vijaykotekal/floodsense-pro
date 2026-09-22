@@ -4,20 +4,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/*
- * Design system definition.
- *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
- *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
- *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
- */
-
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -26,6 +12,7 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -59,10 +46,29 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-line: var(--line);
+  --color-dim: var(--dim);
+  --color-faint: var(--faint);
+  --color-signal: var(--signal);
+  --color-signalink: var(--signalink);
+  --color-high: var(--high);
+  --color-crit: var(--crit);
+  --color-safe: var(--safe);
+  --color-water: var(--water);
+
+  --font-sans: var(--font-sans-stack);
+  --font-display: var(--font-display-stack);
+  --font-mono: var(--font-mono-stack);
 }
 
 :root {
   --radius: 0.625rem;
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.129 0.042 264.695);
   --card: oklch(1 0 0);
@@ -95,6 +101,24 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+
+  --paper: oklch(0.975 0.004 247.858);
+  --ink: oklch(0.18 0.02 264.695);
+  --panel: oklch(0.995 0.002 247.858);
+  --panel2: oklch(0.965 0.005 247.896);
+  --line: oklch(0.91 0.008 255.508);
+  --dim: oklch(0.5 0.02 257.417);
+  --faint: oklch(0.68 0.015 257.417);
+  --signal: oklch(0.5 0.14 232.788);
+  --signalink: oklch(0.984 0.003 247.858);
+  --high: oklch(0.576 0.245 27.325);
+  --crit: oklch(0.45 0.22 27.325);
+  --safe: oklch(0.596 0.145 163.225);
+  --water: oklch(0.546 0.16 232.788);
+
+  --font-sans-stack: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display-stack: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono-stack: "JetBrains Mono", "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
 }
 
 .dark {
@@ -130,6 +154,20 @@
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
+
+  --paper: oklch(0.11 0.02 264.695);
+  --ink: oklch(0.97 0.003 247.858);
+  --panel: oklch(0.16 0.02 265.755);
+  --panel2: oklch(0.2 0.02 265.755);
+  --line: oklch(0.28 0.01 255.508);
+  --dim: oklch(0.65 0.02 257.417);
+  --faint: oklch(0.5 0.015 257.417);
+  --signal: oklch(0.62 0.14 232.788);
+  --signalink: oklch(0.984 0.003 247.858);
+  --high: oklch(0.65 0.22 27.325);
+  --crit: oklch(0.55 0.2 27.325);
+  --safe: oklch(0.7 0.15 163.225);
+  --water: oklch(0.6 0.15 232.788);
 }
 
 @layer base {
@@ -140,5 +178,52 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans-stack);
   }
+}
+
+/* Demo map — CSS-only terrain visualization for the dashboard preview cards */
+.demo-map {
+  background:
+    radial-gradient(ellipse at 20% 30%, oklch(0.92 0.02 130) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 60%, oklch(0.88 0.03 130) 0%, transparent 60%),
+    linear-gradient(135deg, oklch(0.93 0.01 130), oklch(0.9 0.02 130));
+}
+
+.map-grid {
+  background-image:
+    linear-gradient(oklch(0.82 0.01 130 / 40%) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.82 0.01 130 / 40%) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.map-high {
+  background: oklch(0.576 0.245 27.325 / 35%);
+  border: 2px solid oklch(0.576 0.245 27.325 / 60%);
+}
+
+.map-moderate {
+  background: oklch(0.7 0.16 70 / 30%);
+  border: 2px solid oklch(0.7 0.16 70 / 50%);
+}
+
+.map-safe {
+  background: oklch(0.596 0.145 163.225 / 30%);
+  border: 2px solid oklch(0.596 0.145 163.225 / 50%);
+}
+
+.map-river {
+  background: oklch(0.546 0.16 232.788 / 50%);
+}
+
+/* Leaflet container overrides */
+.leaflet-container {
+  font-family: var(--font-mono-stack);
+  background: oklch(0.93 0.01 130);
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: var(--radius);
+  font-family: var(--font-mono-stack);
+  font-size: 11px;
 }
