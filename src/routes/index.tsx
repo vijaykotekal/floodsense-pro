@@ -1,24 +1,240 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+  Activity,
+  AlertTriangle,
+  Bell,
+  Check,
+  ChevronRight,
+  CloudRain,
+  Compass,
+  Database,
+  Droplets,
+  Gauge,
+  Leaf,
+  Map,
+  Menu,
+  Mountain,
+  Navigation,
+  Route as RouteIcon,
+  Search,
+  Settings,
+  ShieldCheck,
+  Siren,
+  TreePine,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/sonner";
+import {
+  demoInput,
+  predictFloodRisk,
+  type PredictionInput,
+  type PredictionResult,
+  type RiskLevel,
+} from "@/services/predictionService";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "FloodSense AI — Mountain Flood Early Warning System" },
+      { name: "description", content: "Demo command center for mountain flood risk prediction, explanation, early warning, evacuation, and restoration planning." },
+      { property: "og:title", content: "FloodSense AI — Mountain Flood Early Warning System" },
+      { property: "og:description", content: "Predict. Protect. Prepare. A functional academic prototype for flood risk to action." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: FloodSenseApp,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+type View = "Dashboard" | "Flood Prediction" | "Risk Map" | "Alerts" | "Evacuation" | "Restoration" | "Data & Analytics" | "Authorities" | "Settings";
+
+const navItems: Array<{ label: View; icon: typeof Activity }> = [
+  { label: "Dashboard", icon: Activity },
+  { label: "Flood Prediction", icon: Gauge },
+  { label: "Risk Map", icon: Map },
+  { label: "Alerts", icon: Bell },
+  { label: "Evacuation", icon: RouteIcon },
+  { label: "Restoration", icon: Leaf },
+  { label: "Data & Analytics", icon: Database },
+  { label: "Authorities", icon: ShieldCheck },
+  { label: "Settings", icon: Settings },
+];
+
+const trendData = {
+  "24 Hours": [22, 30, 42, 56, 72, 78],
+  "7 Days": [31, 36, 41, 48, 52, 61, 78],
+  "30 Days": [35, 39, 42, 45, 50, 58, 78],
+};
+
+function levelClass(level: RiskLevel) {
+  return level === "CRITICAL" ? "text-crit bg-crit/15" : level === "HIGH" ? "text-high bg-high/15" : level === "MODERATE" ? "text-signal bg-signal/15" : "text-safe bg-safe/15";
+}
+
+function FloodSenseApp() {
+  const [view, setView] = useState<View>("Dashboard");
+  const [mobileNav, setMobileNav] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [scenarioStep, setScenarioStep] = useState(0);
+  const [result, setResult] = useState<PredictionResult>(() => predictFloodRisk(demoInput));
+  const [input, setInput] = useState<PredictionInput>(demoInput);
+  const [riskPeriod, setRiskPeriod] = useState<keyof typeof trendData>("24 Hours");
+
+  const updateInput = (key: keyof PredictionInput, value: string) => setInput((current) => ({ ...current, [key]: Number(value) }));
+  const runPrediction = () => {
+    const next = predictFloodRisk(input);
+    setResult(next);
+    toast.success(`Model simulation complete: ${next.level} risk`, { description: `${next.score}/100 · ${next.probability}% probability · ${next.confidence}% confidence` });
+  };
+  const runScenario = () => {
+    setScenarioStep(1);
+    toast("Complete flood scenario started", { description: "Simulating rainfall detection and river response…" });
+    let step = 1;
+    const timer = window.setInterval(() => {
+      step += 1;
+      setScenarioStep(step);
+      if (step >= 12) {
+        window.clearInterval(timer);
+        setResult(predictFloodRisk(demoInput));
+        toast.success("Scenario complete", { description: "Alert sent, route generated, and shelter identified." });
+      }
+    }, 480);
+  };
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="min-h-screen bg-paper font-sans text-ink antialiased">
+      <Toaster position="bottom-right" />
+      <div className="mx-auto flex min-h-screen max-w-[1600px]">
+        <Sidebar view={view} onNavigate={setView} />
+        {mobileNav && <MobileNav view={view} onNavigate={(next) => { setView(next); setMobileNav(false); }} onClose={() => setMobileNav(false)} />}
+        <main className="min-w-0 flex-1">
+          <Topbar onMenu={() => setMobileNav(true)} onNotifications={() => setNotificationsOpen((open) => !open)} notificationsOpen={notificationsOpen} />
+          <EmergencyBar result={result} onAlert={() => setView("Alerts")} onEvacuation={() => setView("Evacuation")} />
+          {notificationsOpen && <NotificationPanel onNavigate={(next) => { setView(next); setNotificationsOpen(false); }} />}
+          <div className="space-y-4 p-4 lg:p-6">
+            {view === "Dashboard" && <DashboardView result={result} period={riskPeriod} setPeriod={setRiskPeriod} onScenario={runScenario} scenarioStep={scenarioStep} onNavigate={setView} />}
+            {view === "Flood Prediction" && <PredictionView input={input} result={result} updateInput={updateInput} onPredict={runPrediction} />}
+            {view === "Risk Map" && <MapView onNavigate={setView} />}
+            {view === "Alerts" && <AlertsView onNavigate={setView} />}
+            {view === "Evacuation" && <EvacuationView onNavigate={setView} />}
+            {view === "Restoration" && <RestorationView />}
+            {view === "Data & Analytics" && <AnalyticsView period={riskPeriod} setPeriod={setRiskPeriod} />}
+            {view === "Authorities" && <AuthoritiesView onNavigate={setView} />}
+            {view === "Settings" && <SettingsView />}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
+
+function Sidebar({ view, onNavigate }: { view: View; onNavigate: (view: View) => void }) {
+  return <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-panel px-4 py-5 lg:flex">
+    <div className="flex items-center gap-2.5 px-2"><div className="grid size-8 place-items-center rounded-md bg-signal font-display text-base font-bold text-signalink">F</div><div className="leading-tight"><div className="font-display font-bold tracking-tight">FloodSense</div><div className="font-mono text-[10px] text-dim">AI · v0.4</div></div></div>
+    <div className="mt-1.5 px-2 font-mono text-[10px] uppercase tracking-widest text-faint">Early Warning System</div>
+    <nav className="mt-6 space-y-0.5">{navItems.map(({ label, icon: Icon }) => <button key={label} onClick={() => onNavigate(label)} className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors ${view === label ? "bg-panel2 font-medium text-signal" : "text-dim hover:bg-panel2 hover:text-ink"}`}><Icon className="size-4" />{label}</button>)}</nav>
+    <SystemStatus />
+    <div className="flex items-center justify-between border-t border-line px-2.5 pt-4"><div><div className="font-mono text-[11px] text-dim">Dr. A. Rao</div><div className="font-mono text-[10px] text-faint">AUTHORITY · DEMO</div></div><div className="grid size-8 place-items-center rounded-full bg-panel2 font-display text-[11px] font-semibold">AR</div></div>
+  </aside>;
+}
+
+function MobileNav({ view, onNavigate, onClose }: { view: View; onNavigate: (view: View) => void; onClose: () => void }) {
+  return <div className="fixed inset-0 z-50 bg-paper/90 backdrop-blur-sm lg:hidden"><aside className="flex h-full w-[min(85vw,320px)] flex-col border-r border-line bg-panel p-5"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="grid size-8 place-items-center rounded-md bg-signal font-display font-bold text-signalink">F</div><span className="font-display font-bold">FloodSense AI</span></div><Button variant="ghost" size="icon" onClick={onClose} aria-label="Close navigation"><X /></Button></div><nav className="mt-8 space-y-1">{navItems.map(({ label, icon: Icon }) => <button key={label} onClick={() => onNavigate(label)} className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left ${view === label ? "bg-panel2 text-signal" : "text-dim"}`}><Icon className="size-4" />{label}</button>)}</nav><div className="mt-auto"><SystemStatus /></div></aside></div>;
+}
+
+function SystemStatus() {
+  return <div className="mt-auto space-y-2 border-t border-line pt-4"><div className="rounded-md bg-panel2 px-2.5 py-2"><div className="mb-2 font-mono text-[10px] uppercase tracking-wider text-faint">System Status</div><div className="space-y-1.5 text-xs"><StatusRow label="AI Model" status="ONLINE" color="safe" /><StatusRow label="Data Pipeline" status="CONNECTED" color="safe" /><StatusRow label="GIS Service" status="ONLINE" color="safe" /><StatusRow label="Alert Service" status="OPERATIONAL" color="signal" /></div></div></div>;
+}
+
+function StatusRow({ label, status, color }: { label: string; status: string; color: "safe" | "signal" }) {
+  return <div className="flex items-center justify-between"><span className="text-dim">{label}</span><span className={`flex items-center gap-1.5 font-mono text-[10px] text-${color}`}><span className={`size-1.5 rounded-full bg-${color} ${color === "safe" ? "animate-pulse" : ""}`} />{status}</span></div>;
+}
+
+function Topbar({ onMenu, onNotifications, notificationsOpen }: { onMenu: () => void; onNotifications: () => void; notificationsOpen: boolean }) {
+  return <header className="flex items-center gap-3 border-b border-line bg-panel px-4 py-3 lg:px-6"><Button variant="ghost" size="icon" className="text-dim lg:hidden" onClick={onMenu} aria-label="Open navigation"><Menu /></Button><div className="flex items-center gap-2 lg:hidden"><div className="grid size-7 place-items-center rounded-md bg-signal font-display font-bold text-signalink">F</div><span className="font-display font-bold">FloodSense</span></div><div className="hidden lg:block"><div className="font-display font-bold tracking-tight">AI Flood Risk Monitoring Dashboard</div><div className="font-mono text-[10px] text-dim">MOUNTAIN FLASH-FLOOD GRID · DEMO ENVIRONMENT</div></div><div className="ml-auto flex items-center gap-2"><span className="rounded-md border border-line px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-signal">DEMO MODE ON</span><div className="hidden items-center gap-1.5 rounded-md bg-panel2 px-2.5 py-1.5 font-mono text-[11px] text-dim sm:flex"><span className="size-1.5 animate-pulse rounded-full bg-safe" />PIPELINE OK</div><Button variant="ghost" size="icon" className="relative border border-line text-dim" onClick={onNotifications} aria-label="Open notifications"><Bell /><span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-high" /></Button><div className="grid size-7 place-items-center rounded-full bg-panel2 font-display text-[11px] font-semibold">AR</div></div></header>;
+}
+
+function EmergencyBar({ result, onAlert, onEvacuation }: { result: PredictionResult; onAlert: () => void; onEvacuation: () => void }) {
+  const active = result.level === "HIGH" || result.level === "CRITICAL";
+  return <div className={`flex flex-wrap items-center gap-3 border-b px-4 py-2.5 lg:px-6 ${active ? "border-high/40 bg-high/15" : "border-line bg-panel2"}`}><span className={`size-2 shrink-0 rounded-full ${active ? "animate-pulse bg-high" : "bg-safe"}`} /><span className={`font-mono text-[11px] font-medium uppercase tracking-wider ${active ? "text-high" : "text-safe"}`}>{active ? `${result.level} FLOOD RISK — IMMEDIATE ATTENTION` : `${result.level} FLOOD RISK — MONITORING ACTIVE`}</span><span className="hidden font-mono text-[11px] text-dim md:inline">Sector M-04 · Model Simulation</span><div className="ml-auto flex gap-1.5"><Button variant="outline" size="sm" onClick={onAlert}>View Alert</Button><Button size="sm" className="bg-signal text-signalink hover:bg-signal/90" onClick={onEvacuation}>Evacuation Route</Button></div></div>;
+}
+
+function NotificationPanel({ onNavigate }: { onNavigate: (view: View) => void }) {
+  return <div className="absolute right-4 top-16 z-40 w-[min(92vw,360px)] border border-line bg-panel p-4 shadow-2xl lg:right-6"><div className="mb-3 flex items-center justify-between"><span className="font-display font-semibold">Notifications</span><span className="font-mono text-[10px] text-faint">3 UNREAD</span></div><div className="space-y-2">{[["Critical flood risk detected", "Alerts", "high"], ["River level rising rapidly", "Risk Map", "signal"], ["Evacuation route updated", "Evacuation", "safe"]].map(([text, target, color]) => <button key={text} onClick={() => onNavigate(target as View)} className="flex w-full gap-3 border-l-2 border-line bg-panel2 p-3 text-left hover:border-signal"><span className={`mt-1 size-2 rounded-full bg-${color}`} /><span><span className="block text-xs text-ink">{text}</span><span className="font-mono text-[10px] text-faint">Demo notification · tap to open</span></span></button>)}</div></div>;
+}
+
+function DashboardView({ result, period, setPeriod, onScenario, scenarioStep, onNavigate }: { result: PredictionResult; period: keyof typeof trendData; setPeriod: (period: keyof typeof trendData) => void; onScenario: () => void; scenarioStep: number; onNavigate: (view: View) => void }) {
+  return <><section className="flex flex-wrap items-end justify-between gap-4"><div><div className="font-mono text-[11px] uppercase tracking-widest text-dim">Current Risk · Sector M-04</div><div className="mt-1 flex items-end gap-3"><span className={`font-display text-7xl font-bold leading-none ${result.level === "CRITICAL" ? "text-crit" : "text-ink"}`}>{result.score}</span><span className="pb-1 font-mono text-dim">/ 100</span><span className={`mb-1 rounded px-2 py-1 font-mono text-[11px] font-medium tracking-wider ${levelClass(result.level)}`}>{result.level}</span></div></div><div className="max-w-md"><p className="font-mono text-[11px] leading-relaxed text-dim">Model Simulation · Last update 08:14 IST · Confidence {result.confidence}%</p><Button className="mt-2 bg-signal font-mono text-xs text-signalink hover:bg-signal/90" onClick={onScenario}>RUN COMPLETE FLOOD SCENARIO</Button></div></section><KpiStrip result={result} /><div className="grid grid-cols-1 gap-4 xl:grid-cols-3"><RiskTrend period={period} setPeriod={setPeriod} /><Explanation result={result} /></div><div className="grid grid-cols-1 gap-4 xl:grid-cols-3"><MapPreview onNavigate={onNavigate} /><AlertsPreview onNavigate={onNavigate} /></div><ScenarioProgress step={scenarioStep} /><FlowStrip /></>;
+}
+
+function KpiStrip({ result }: { result: PredictionResult }) {
+  const kpis = [["Total Rainfall", "124", "mm", "+34mm/hr", "safe"], ["Rainfall Duration", "6.5", "hrs", "continuous", "dim"], ["River Level", "4.8", "m", "+0.6m/hr", "high"], ["Active Alerts", "12", "", "3 critical", "signal"], ["Terrain Risk", "High", "", "slope 42°", "high"], ["Safe Shelters", "8", "", "542 spaces", "safe"], ["Areas at Risk", "5", "", "sectors", "dim"], ["Population", "3.2k", "", "affected est.", "dim"]];
+  return <section className="grid grid-cols-2 gap-3 md:grid-cols-4">{kpis.map(([label, value, unit, foot, color]) => <div key={label} className="rounded-lg border border-line bg-panel p-3"><div className="font-mono text-[10px] uppercase tracking-wider text-faint">{label}</div><div className={`mt-1 font-display text-2xl font-bold tracking-tight ${color === "high" ? "text-high" : color === "safe" ? "text-safe" : color === "signal" ? "text-signal" : ""}`}>{value}<span className="ml-1 font-mono text-xs font-normal text-dim">{unit}</span></div><div className={`mt-1 font-mono text-[10px] ${color === "safe" ? "text-safe" : color === "high" ? "text-high" : "text-dim"}`}>{foot}</div></div>)}</section>;
+}
+
+function RiskTrend({ period, setPeriod }: { period: keyof typeof trendData; setPeriod: (period: keyof typeof trendData) => void }) {
+  const data = trendData[period];
+  return <section className="rounded-lg border border-line bg-panel p-4 xl:col-span-2"><div className="flex items-center justify-between"><div><div className="font-display font-semibold tracking-tight">Risk Trend</div><div className="font-mono text-[10px] text-dim">SCORE OVER TIME · DEMO DATA</div></div><div className="flex gap-1">{(Object.keys(trendData) as Array<keyof typeof trendData>).map((label) => <button key={label} onClick={() => setPeriod(label)} className={`rounded px-2 py-0.5 font-mono text-[10px] ${period === label ? "bg-panel2 text-signal" : "text-dim"}`}>{label.replace(" Hours", "H").replace(" Days", "D")}</button>)}</div></div><div className="mt-4 flex h-40 items-end gap-3">{data.map((value, index) => <div key={`${value}-${index}`} className="flex flex-1 flex-col items-center justify-end gap-1"><div className={`w-full rounded-t ${value >= 70 ? "bg-high" : value >= 50 ? "bg-signal/70" : "bg-line/60"}`} style={{ height: `${value}%` }} /><div className={`font-mono text-[10px] ${value >= 70 ? "text-high" : "text-faint"}`}>{value}</div></div>)}</div><div className="mt-2 flex justify-between font-mono text-[10px] text-faint"><span>00:00</span><span>04:00</span><span>08:00</span><span>12:00</span><span>16:00</span><span>20:00</span></div></section>;
+}
+
+function Explanation({ result }: { result: PredictionResult }) {
+  return <section className="flex flex-col rounded-lg border border-line bg-panel p-4"><div className="flex items-center justify-between"><div className="font-display font-semibold tracking-tight">Why Risk Is {result.level === "LOW" ? "Low" : "High"}</div><span className="font-mono text-[10px] text-faint">SHAP · DEMO</span></div><div className="mt-4 space-y-3">{result.factors.map((factor) => <div key={factor.label}><div className="flex justify-between font-mono text-[11px]"><span className="text-dim">{factor.label}</span><span>{factor.value}%</span></div><div className="mt-1 h-1.5 rounded-full bg-line"><div className={`h-full rounded-full ${factor.value >= 65 ? "bg-signal" : "bg-line"}`} style={{ width: `${factor.value}%` }} /></div></div>)}</div><p className="mt-4 border-t border-line pt-3 font-mono text-[10px] leading-relaxed text-faint">{result.explanation} Feature importance shown in demo mode; actual values will come from a trained model.</p></section>;
+}
+
+function MapPreview({ onNavigate }: { onNavigate: (view: View) => void }) {
+  return <section className="rounded-lg border border-line bg-panel p-4 xl:col-span-2"><div className="flex items-center justify-between"><div><div className="font-display font-semibold tracking-tight">Risk Map · Evacuation</div><div className="font-mono text-[10px] text-dim">GIS · DEMO COORDINATES · MOUNTAIN REGION</div></div><div className="flex gap-1.5"><Button variant="outline" size="sm" onClick={() => onNavigate("Risk Map")}>Open Map</Button><Button variant="outline" size="sm" onClick={() => onNavigate("Evacuation")}>Shelters</Button></div></div><div className="demo-map relative mt-4 h-64 overflow-hidden rounded-md"><div className="map-grid absolute inset-0" /><div className="map-high absolute left-0 top-0 h-full w-1/3 rounded-r-full" /><div className="map-moderate absolute left-0 top-1/4 h-1/2 w-1/2 rounded-r-full" /><div className="map-safe absolute bottom-0 right-0 h-1/3 w-2/5 rounded-l-full" /><div className="map-river absolute left-1/3 top-1/2 h-1 w-1/2 -translate-y-1/2 rounded-full" /><MapMarker className="left-8 top-10" color="water" label="You" pulse /><MapMarker className="right-12 top-12" color="safe" label="Shelter A" square /><div className="absolute bottom-3 left-3 flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-panel/80 p-2 font-mono text-[10px]"><span className="flex items-center gap-1 text-high"><span className="size-2 rounded-full bg-high" />High</span><span className="flex items-center gap-1 text-signal"><span className="size-2 rounded-full bg-signal" />Moderate</span><span className="flex items-center gap-1 text-safe"><span className="size-2 rounded-full bg-safe" />Safe</span><span className="flex items-center gap-1 text-water"><span className="size-2 rounded-full bg-water" />User</span></div></div></section>;
+}
+
+function MapMarker({ className, color, label, pulse, square }: { className: string; color: "water" | "safe"; label: string; pulse?: boolean; square?: boolean }) {
+  return <div className={`absolute flex items-center gap-1.5 ${className}`}><span className={`${square ? "rounded-sm" : "rounded-full"} size-2.5 bg-${color} ${pulse ? "animate-pulse" : ""}`} /><span className="font-mono text-[10px] text-dim">{label}</span></div>;
+}
+
+function AlertsPreview({ onNavigate }: { onNavigate: (view: View) => void }) {
+  return <section className="flex flex-col rounded-lg border border-line bg-panel p-4"><div className="flex items-center justify-between"><div className="font-display font-semibold tracking-tight">Active Alerts</div><span className="font-mono text-[10px] text-faint">12 TOTAL</span></div><div className="mt-3 space-y-2"><AlertMini color="high" title="FLOOD WARNING" text="High risk detected · Move to safe destination" time="10m" /><AlertMini color="signal" title="RIVER RISING" text="Level +0.6m/hr at dam K-2" time="22m" /><AlertMini color="safe" title="ROUTE UPDATED" text="Alt. path via ridge now available" time="41m" /></div><Button variant="outline" className="mt-auto w-full" onClick={() => onNavigate("Alerts")}>View alert history <ChevronRight /></Button></section>;
+}
+
+function AlertMini({ color, title, text, time }: { color: "high" | "signal" | "safe"; title: string; text: string; time: string }) {
+  return <div className={`border-l-2 border-${color} bg-panel2 p-2.5`}><div className="flex items-center gap-2"><span className={`size-1.5 rounded-full bg-${color}`} /><span className={`font-mono text-[11px] font-medium text-${color}`}>{title}</span><span className="ml-auto font-mono text-[10px] text-faint">{time}</span></div><div className="mt-1 text-xs text-ink">{text}</div></div>;
+}
+
+function ScenarioProgress({ step }: { step: number }) {
+  const labels = ["Rain detected", "River rising", "Risk calculated", "Risk explained", "Alert generated", "Citizen notified", "Authority notified", "Map highlighted", "Route generated", "Shelter selected", "Restoration ready", "Complete"];
+  return <section className="rounded-lg border border-line bg-panel p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="font-display font-semibold tracking-tight">Complete Flood Scenario</div><div className="font-mono text-[10px] text-dim">END-TO-END DEMONSTRATION WORKFLOW</div></div><span className="font-mono text-[10px] text-faint">{step === 0 ? "READY" : `${Math.min(step, 12)}/12`}</span></div><div className="mt-3 flex gap-1">{labels.map((label, index) => <div key={label} title={label} className={`h-1.5 flex-1 rounded-full ${index < step ? "bg-safe" : index === step ? "animate-pulse bg-signal" : "bg-line"}`} />)}</div><p className="mt-2 font-mono text-[10px] text-dim">{step === 0 ? "Press RUN COMPLETE FLOOD SCENARIO to simulate prediction-to-action." : step >= 12 ? "Scenario complete: prediction became action." : `Now: ${labels[step - 1]}…`}</p></section>;
+}
+
+function FlowStrip() { return <section className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-line bg-panel px-4 py-3 font-mono text-[11px] text-dim"><span className="text-ink">DATA</span><span>→</span><span className="text-ink">PREDICT</span><span>→</span><span className="text-ink">EXPLAIN</span><span>→</span><span className="text-signal">WARN</span><span>→</span><span className="text-ink">MESSAGE</span><span>→</span><span className="text-ink">EVACUATE</span><span>→</span><span className="text-ink">RESTORE</span><span>→</span><span className="text-ink">PREPARE</span><span className="ml-auto hidden text-faint sm:inline">PREDICTION BECOMES ACTION.</span></section>; }
+
+function PredictionView({ input, result, updateInput, onPredict }: { input: PredictionInput; result: PredictionResult; updateInput: (key: keyof PredictionInput, value: string) => void; onPredict: () => void }) {
+  const groups: Array<{ title: string; icon: typeof CloudRain; fields: Array<[keyof PredictionInput, string, string, number, number, number]> }> = [
+    { title: "Meteorological", icon: CloudRain, fields: [["rainfallIntensity", "Rainfall intensity", "mm/hr", 0, 100, 1], ["totalRainfall", "Total rainfall", "mm", 0, 300, 1], ["rainfallDuration", "Continuous duration", "hours", 0, 24, 0.5], ["cloudburst", "Cloudburst occurrence", "%", 0, 100, 1], ["temperature", "Temperature", "°C", -10, 45, 1], ["humidity", "Humidity", "%", 0, 100, 1], ["climateChange", "Climate change indicator", "%", 0, 100, 1]] },
+    { title: "Geographical", icon: Mountain, fields: [["elevation", "Elevation", "m", 0, 5000, 10], ["slope", "Slope", "°", 0, 90, 1], ["terrain", "Terrain risk", "%", 0, 100, 1]] },
+    { title: "Environmental", icon: TreePine, fields: [["vegetation", "Vegetation coverage", "%", 0, 100, 1], ["forest", "Forest coverage", "%", 0, 100, 1]] },
+    { title: "Hydrological", icon: Droplets, fields: [["riverLevel", "River water level", "m", 0, 10, 0.1], ["riverFlow", "River flow", "%", 0, 100, 1], ["damCapacity", "Dam capacity", "%", 0, 100, 1], ["damLevel", "Dam water level", "%", 0, 100, 1]] },
+    { title: "Human-Induced", icon: Users, fields: [["construction", "Construction activity", "%", 0, 100, 1], ["development", "Urban / hill development", "%", 0, 100, 1], ["landUse", "Land-use change", "%", 0, 100, 1]] },
+  ];
+  return <><PageHeading eyebrow="MODEL SIMULATION · DEMO DATA" title="AI Flood Risk Prediction" description="Adjust environmental inputs, calculate a transparent demo score, and review its feature importance." /><div className="grid grid-cols-1 gap-4 xl:grid-cols-3"><section className="space-y-4 xl:col-span-2">{groups.map(({ title, icon: Icon, fields }) => <div key={title} className="rounded-lg border border-line bg-panel p-4"><div className="mb-4 flex items-center gap-2 font-display font-semibold"><Icon className="size-4 text-signal" />{title}</div><div className="grid gap-4 sm:grid-cols-2">{fields.map(([key, label, unit, min, max, step]) => <label key={key} className="block"><span className="mb-1.5 flex justify-between font-mono text-[10px] uppercase tracking-wider text-dim"><span>{label}</span><span>{input[key]} {unit}</span></span><input aria-label={label} type="range" min={min} max={max} step={step} value={input[key]} onChange={(event) => updateInput(key, event.target.value)} className="w-full accent-signal" /></label>)}</div></div>)}<Button onClick={onPredict} className="h-11 w-full bg-signal font-mono font-semibold text-signalink hover:bg-signal/90"><Zap /> PREDICT FLOOD RISK</Button></section><section className="space-y-4"><div className="rounded-lg border border-line bg-panel p-5"><div className="flex items-center justify-between"><span className="font-mono text-[10px] uppercase tracking-wider text-faint">Prediction result</span><span className="rounded bg-signal/15 px-2 py-1 font-mono text-[10px] text-signal">MODEL SIMULATION</span></div><div className="mt-5 flex items-end gap-3"><span className="font-display text-6xl font-bold">{result.score}</span><span className="pb-1 font-mono text-dim">/ 100</span><span className={`mb-2 rounded px-2 py-1 font-mono text-[11px] ${levelClass(result.level)}`}>{result.level}</span></div><div className="mt-4 h-2 rounded-full bg-line"><div className={`h-full rounded-full ${result.level === "CRITICAL" ? "bg-crit" : result.level === "HIGH" ? "bg-high" : result.level === "MODERATE" ? "bg-signal" : "bg-safe"}`} style={{ width: `${result.score}%` }} /></div><div className="mt-5 grid grid-cols-2 gap-4"><Metric label="Probability" value={`${result.probability}%`} /><Metric label="Confidence" value={`${result.confidence}%`} /></div></div><Explanation result={result} /><div className="rounded-lg border border-line bg-panel p-4"><div className="flex items-center gap-2 font-display font-semibold"><AlertTriangle className="size-4 text-signal" />Safety note</div><p className="mt-2 text-xs leading-relaxed text-dim">This prototype uses simulated data and a transparent demo formula. It is not a real-time government warning, guaranteed prediction, or emergency dispatch service.</p></div></section></div></>;
+}
+
+function Metric({ label, value }: { label: string; value: string }) { return <div><div className="font-mono text-[10px] uppercase tracking-wider text-faint">{label}</div><div className="mt-1 font-display text-xl">{value}</div></div>; }
+
+function PageHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) { return <div className="mb-5"><div className="font-mono text-[10px] uppercase tracking-[0.18em] text-signal">{eyebrow}</div><h1 className="mt-1 font-display text-3xl font-bold tracking-tight">{title}</h1><p className="mt-2 max-w-2xl text-sm text-dim">{description}</p></div>; }
+
+function MapView({ onNavigate }: { onNavigate: (view: View) => void }) { return <><PageHeading eyebrow="GIS · DEMO COORDINATES" title="Risk Map" description="Explore simulated mountain flood zones, rivers, shelters, dams, and a recommended route." /><div className="grid grid-cols-1 gap-4 xl:grid-cols-4"><section className="rounded-lg border border-line bg-panel p-4 xl:col-span-3"><div className="flex flex-wrap items-center justify-between gap-2"><div className="font-display font-semibold">Kumaun Valley · Sector M-04</div><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => toast.success("Demo location centered")}> <Navigation /> Locate Me</Button><Button variant="outline" size="sm" onClick={() => toast("High-risk zones highlighted")}>Show High-Risk</Button><Button size="sm" className="bg-signal text-signalink hover:bg-signal/90" onClick={() => onNavigate("Evacuation")}>Show Route</Button></div></div><div className="demo-map relative mt-4 h-[500px] overflow-hidden rounded-md"><div className="map-grid absolute inset-0" /><div className="map-high absolute left-0 top-0 h-3/4 w-2/5 rounded-r-full" /><div className="map-moderate absolute left-0 top-1/3 h-1/2 w-3/5 rounded-r-full" /><div className="map-safe absolute bottom-0 right-0 h-2/5 w-2/5 rounded-l-full" /><div className="map-river absolute left-1/4 top-1/2 h-2 w-3/5 -rotate-6 rounded-full" /><div className="absolute left-1/3 top-1/4 h-56 w-1 -rotate-12 rounded-full bg-safe" /><MapMarker className="left-16 top-16" color="water" label="Your location" pulse /><MapMarker className="right-24 top-20" color="safe" label="Community Shelter A" square /><MapMarker className="left-[45%] top-[42%]" color="safe" label="Hospital" square /><div className="absolute bottom-4 left-4 rounded-md bg-panel/90 p-3 font-mono text-[10px] text-dim"><div className="mb-2 text-faint">MAP LEGEND</div><div className="space-y-1"><div><span className="mr-2 inline-block size-2 rounded-full bg-high" />High-risk zone · 78</div><div><span className="mr-2 inline-block size-2 rounded-full bg-signal" />Moderate-risk zone</div><div><span className="mr-2 inline-block size-2 rounded-full bg-safe" />Safe destination</div><div><span className="mr-2 inline-block size-2 rounded-full bg-water" />User location / river</div></div></div></div></section><section className="space-y-4"><div className="rounded-lg border border-line bg-panel p-4"><div className="font-display font-semibold">Selected zone</div><div className="mt-4 space-y-3 text-xs"><Metric label="Location" value="Upper Kumaun Basin" /><Metric label="Risk score" value="78 / 100 · HIGH" /><Metric label="Rainfall" value="124 mm" /><Metric label="River level" value="4.8 m" /><Metric label="Population affected" value="3,200 est." /></div><Button className="mt-5 w-full bg-signal text-signalink hover:bg-signal/90" onClick={() => onNavigate("Evacuation")}>Start Evacuation <ChevronRight /></Button></div><div className="rounded-lg border border-line bg-panel p-4"><div className="font-display font-semibold">Map layers</div><div className="mt-3 space-y-2 text-xs text-dim">{["High-risk flood zone", "Moderate-risk zone", "Rivers and roads", "Shelters and hospitals", "Dams", "Terrain / elevation"].map((layer) => <label key={layer} className="flex items-center gap-2"><input type="checkbox" defaultChecked className="accent-signal" />{layer}</label>)}</div></div></section></div></>; }
+
+function AlertsView({ onNavigate }: { onNavigate: (view: View) => void }) { return <><PageHeading eyebrow="EARLY WARNING · DEMO NOTIFICATIONS" title="Alerts & Early Warning" description="Review simulated citizen and authority notifications, then move into the response workflow." /><div className="grid gap-4 lg:grid-cols-2"><AlertDetail title="FLOOD WARNING" audience="CITIZEN ALERT" color="high" reason="Heavy rainfall + rising river level" action="Move toward the recommended safe destination. Follow the evacuation route shown on the map." onAction={() => onNavigate("Evacuation")} /><AlertDetail title="FLOOD RISK ALERT" audience="AUTHORITY ALERT" color="signal" reason="Heavy rainfall + rising flood risk" action="Activate emergency response and verify evacuation plans." onAction={() => onNavigate("Authorities")} /></div><div className="mt-4 rounded-lg border border-line bg-panel p-4"><div className="mb-4 flex flex-wrap items-center justify-between gap-2"><div className="font-display font-semibold">Alert History</div><div className="flex gap-2"><Button variant="outline" size="sm">Risk: All</Button><Button variant="outline" size="sm">Status: All</Button><Button variant="outline" size="sm">Location: All</Button></div></div><div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-xs"><thead className="font-mono text-[10px] uppercase tracking-wider text-faint"><tr>{["Alert ID", "Location", "Risk", "Reason", "Time", "Audience", "Status"].map((head) => <th key={head} className="border-b border-line px-3 py-3">{head}</th>)}</tr></thead><tbody>{[["ALT-048", "Upper Kumaun", "HIGH", "Rain + river", "10 min ago", "Citizen", "Sent"], ["ALT-047", "Dam K-2", "MODERATE", "River rising", "22 min ago", "Authority", "Acknowledged"], ["ALT-046", "Ridge Road", "LOW", "Route updated", "41 min ago", "All", "Delivered"]].map((row) => <tr key={row[0]} className="border-b border-line/60"><td className="px-3 py-3 font-mono text-dim">{row[0]}</td>{row.slice(1, 6).map((cell) => <td key={cell} className="px-3 py-3 text-dim">{cell}</td>)}<td className="px-3 py-3 text-safe">{row[6]}</td></tr>)}</tbody></table></div></div></>; }
+
+function AlertDetail({ title, audience, color, reason, action, onAction }: { title: string; audience: string; color: "high" | "signal"; reason: string; action: string; onAction: () => void }) { return <div className={`rounded-lg border border-${color}/40 bg-panel p-5`}><div className="flex items-center justify-between"><div className={`font-mono text-[11px] tracking-wider text-${color}`}>{audience}</div><span className={`size-2 rounded-full bg-${color} animate-pulse`} /></div><h2 className="mt-4 font-display text-2xl font-bold">{title}</h2><div className="mt-5 grid gap-3 text-sm sm:grid-cols-2"><Metric label="Area" value="Example Mountain Region" /><Metric label="Risk" value={color === "high" ? "HIGH · 78/100" : "HIGH · response required"} /><Metric label="Reason" value={reason} /><Metric label="Time" value="10 minutes ago" /></div><p className="mt-5 border-l-2 border-line pl-3 text-sm leading-relaxed text-dim"><span className="font-medium text-ink">Action: </span>{action}</p><div className="mt-5 flex flex-wrap gap-2"><Button className={`bg-${color} text-paper hover:bg-${color}/90`} onClick={onAction}>{color === "high" ? "Start Evacuation" : "View Evacuation Plan"}</Button><Button variant="outline" onClick={() => toast.success("Demo alert acknowledged")}>Acknowledge</Button><Button variant="outline" onClick={() => toast.success("Demo alert share prepared")}>Share Alert</Button></div></div>; }
+
+function EvacuationView({ onNavigate }: { onNavigate: (view: View) => void }) { return <><PageHeading eyebrow="GIS RESPONSE · DEMO ROUTE" title="Evacuation Center" description="A modeled route considers flood risk, road access, terrain, distance, and known hazards. Verify with local authorities in real events." /><div className="grid grid-cols-1 gap-4 xl:grid-cols-3"><section className="rounded-lg border border-line bg-panel p-4 xl:col-span-2"><div className="flex items-center justify-between"><div className="font-display font-semibold">Recommended evacuation route</div><span className="rounded bg-safe/15 px-2 py-1 font-mono text-[10px] text-safe">ROUTE READY</span></div><div className="demo-map relative mt-4 h-[420px] overflow-hidden rounded-md"><div className="map-grid absolute inset-0" /><div className="map-high absolute left-0 top-0 h-3/4 w-2/5 rounded-r-full" /><div className="map-safe absolute bottom-0 right-0 h-2/5 w-2/5 rounded-l-full" /><div className="absolute left-[18%] top-[18%] h-64 w-1 rotate-[28deg] rounded-full bg-safe shadow-[0_0_20px_var(--color-safe)]" /><MapMarker className="left-12 top-12" color="water" label="Current location" pulse /><MapMarker className="right-16 bottom-20" color="safe" label="Community Shelter A" square /><div className="absolute bottom-3 left-3 rounded bg-panel/90 px-3 py-2 font-mono text-[10px] text-dim">Bright line = recommended route · red area = flood risk</div></div></section><section className="space-y-4"><div className="rounded-lg border border-signal/40 bg-panel p-5"><div className="font-mono text-[10px] uppercase tracking-wider text-signal">Recommended safe destination</div><h2 className="mt-2 font-display text-2xl font-bold">Community Shelter A</h2><div className="mt-5 grid grid-cols-2 gap-4"><Metric label="Distance" value="2.4 km" /><Metric label="Travel time" value="18 min" /><Metric label="Capacity" value="350 people" /><Metric label="Available" value="142 spaces" /></div><Button className="mt-5 w-full bg-signal text-signalink hover:bg-signal/90" onClick={() => toast.success("Demo evacuation started", { description: "Follow the highlighted route and authority instructions." })}>START EVACUATION <Navigation /></Button></div><div className="rounded-lg border border-line bg-panel p-5"><div className="font-display font-semibold">Evacuation instructions</div><ol className="mt-4 space-y-3 text-sm text-dim">{["Move away from the red flood-risk zone.", "Follow the highlighted evacuation route.", "Avoid rivers and low-lying areas.", "Proceed to the recommended shelter.", "Follow authority instructions."].map((step, index) => <li key={step} className="flex gap-3"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-panel2 font-mono text-[10px] text-signal">{index + 1}</span><span>{step}</span></li>)}</ol><div className="mt-5 border-t border-line pt-4 text-xs text-dim"><div className="flex items-center gap-2 text-ink"><Siren className="size-4 text-high" />Emergency contact</div><p className="mt-2">Demo control room: 112 · District response desk: 1800-000-000</p></div></div></section></div><div className="mt-4 grid gap-3 sm:grid-cols-3">{[["Community Shelter A", "OPEN", "142 available"], ["Ridge School Hall", "LIMITED", "38 available"], ["Valley Clinic", "OPEN", "64 available"]].map(([name, status, spaces]) => <div key={name} className="rounded-lg border border-line bg-panel p-4"><div className="flex justify-between gap-2"><span className="font-display font-semibold">{name}</span><span className={`font-mono text-[10px] ${status === "OPEN" ? "text-safe" : "text-signal"}`}>{status}</span></div><div className="mt-3 font-mono text-[10px] text-dim">{spaces} · demo shelter record</div></div>)}</div><div className="mt-4 text-right"><Button variant="outline" onClick={() => onNavigate("Alerts")}>Review alerts</Button></div></>; }
+
+function RestorationView() { const [current, setCurrent] = useState(28); const [target, setTarget] = useState(45); const increase = Math.max(0, target - current); return <><PageHeading eyebrow="ENVIRONMENTAL PLANNING · MODELED SCENARIO" title="Environmental Restoration" description="Identify areas where vegetation restoration may reduce modeled runoff vulnerability under local conditions. Restoration does not guarantee flood prevention." /><div className="grid gap-4 lg:grid-cols-2"><section className="rounded-lg border border-line bg-panel p-5"><div className="font-display font-semibold">Vegetation restoration analysis</div><div className="mt-5 space-y-5"><label className="block"><span className="flex justify-between font-mono text-[10px] uppercase tracking-wider text-dim">Current vegetation <span>{current}%</span></span><input type="range" min="0" max="100" value={current} onChange={(event) => setCurrent(Number(event.target.value))} className="mt-2 w-full accent-signal" /></label><label className="block"><span className="flex justify-between font-mono text-[10px] uppercase tracking-wider text-dim">Target vegetation <span>{target}%</span></span><input type="range" min="0" max="100" value={target} onChange={(event) => setTarget(Number(event.target.value))} className="mt-2 w-full accent-signal" /></label><div className="grid grid-cols-2 gap-3"><Metric label="Slope" value="42°" /><Metric label="Rainfall" value="124 mm" /><Metric label="Soil/runoff" value="High" /><Metric label="Forest coverage" value="31%" /></div><Button className="w-full bg-signal text-signalink hover:bg-signal/90" onClick={() => toast.success("Restoration scenario analyzed")}>RUN RESTORATION ANALYSIS</Button></div></section><section className="space-y-4"><div className="rounded-lg border border-signal/40 bg-panel p-5"><div className="font-mono text-[10px] uppercase tracking-wider text-signal">Restoration target</div><div className="mt-4 grid grid-cols-2 gap-4"><Metric label="Suitable area" value="24.5 km²" /><Metric label="Current vegetation" value={`${current}%`} /><Metric label="Target vegetation" value={`${target}%`} /><Metric label="Potential increase" value={`${increase}%`} /></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><div className="border-l-2 border-high bg-panel2 p-3"><div className="font-mono text-[10px] text-high">CURRENT SCENARIO</div><div className="mt-1 text-sm">High runoff vulnerability</div></div><div className="border-l-2 border-safe bg-panel2 p-3"><div className="font-mono text-[10px] text-safe">RESTORATION SCENARIO</div><div className="mt-1 text-sm">Reduced modeled runoff vulnerability</div></div></div></div><div className="rounded-lg border border-line bg-panel p-5"><div className="flex items-center gap-2 font-display font-semibold"><Leaf className="size-4 text-safe" />Forest & tree data</div><div className="mt-4 space-y-4">{[["Forest coverage", 31], ["Canopy density", 44], ["Restoration suitability", 72], ["Vulnerable areas", 58]].map(([label, value]) => <div key={label}><div className="flex justify-between font-mono text-[10px] text-dim"><span>{label}</span><span>{value}%</span></div><div className="mt-1 h-2 rounded-full bg-line"><div className="h-full rounded-full bg-safe" style={{ width: `${value}%` }} /></div></div>)}</div><p className="mt-5 text-xs leading-relaxed text-dim">Results represent modeled scenarios and depend on local environmental conditions. They do not guarantee flood prevention.</p></div></section></div></>; }
+
+function AnalyticsView({ period, setPeriod }: { period: keyof typeof trendData; setPeriod: (period: keyof typeof trendData) => void }) { return <><PageHeading eyebrow="DEMO DATASET · MULTI-SOURCE" title="Data & Analytics" description="Inspect the source categories that feed the modeled risk score and compare trends over time." /><div className="grid gap-4 lg:grid-cols-2"> <RiskTrend period={period} setPeriod={setPeriod} /><section className="rounded-lg border border-line bg-panel p-4"><div className="font-display font-semibold">Rainfall, river, and vegetation</div><div className="mt-5 space-y-4">{[["Rainfall over time", 82, "bg-signal"], ["River level over time", 68, "bg-high"], ["Vegetation coverage", 31, "bg-safe"], ["Alert frequency", 55, "bg-water"]].map(([label, value, color]) => <div key={label}><div className="flex justify-between font-mono text-[10px] text-dim"><span>{label}</span><span>{value}%</span></div><div className="mt-1.5 h-3 rounded-full bg-line"><div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }} /></div></div>)}</div></section></div><section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{[["Meteorological", "Rainfall · humidity · cloudburst", CloudRain], ["Geographical", "Elevation · slope · terrain", Mountain], ["Environmental", "Vegetation · forest cover", TreePine], ["Hydrological", "River · flow · dam levels", Droplets], ["Human activity", "Construction · land-use", Users]].map(([label, text, Icon]) => <div key={label as string} className="rounded-lg border border-line bg-panel p-4"><Icon className="size-4 text-signal" /><div className="mt-4 font-display font-semibold">{label as string}</div><div className="mt-1 text-xs leading-relaxed text-dim">{text as string}</div></div>)}</section></>; }
+
+function AuthoritiesView({ onNavigate }: { onNavigate: (view: View) => void }) { return <><PageHeading eyebrow="AUTHORITY VIEW · DEMO RESPONSE" title="Emergency Overview" description="Coordinate simulated response actions across high-risk areas, shelters, alerts, and incident status." /><div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[["Active high-risk areas", "5", AlertTriangle, "high"], ["People potentially affected", "3.2k", Users, "signal"], ["Open shelters", "8", ShieldCheck, "safe"], ["Pending alerts", "3", Bell, "high"]].map(([label, value, Icon, color]) => <div key={label as string} className="rounded-lg border border-line bg-panel p-4"><Icon className={`size-4 text-${color}`} /><div className="mt-4 font-display text-3xl font-bold">{value as string}</div><div className="mt-1 text-xs text-dim">{label as string}</div></div>)}</div><div className="mt-4 grid gap-4 lg:grid-cols-3"><section className="rounded-lg border border-line bg-panel p-4 lg:col-span-2"><div className="flex items-center justify-between"><div className="font-display font-semibold">Incident management</div><span className="font-mono text-[10px] text-signal">INCIDENT M-04</span></div><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[620px] text-left text-xs"><tbody>{[["Location", "Upper Kumaun Basin"], ["Risk level", "HIGH · 78/100"], ["Detected time", "08:04 IST"], ["Assigned authority", "District Response Team 04"], ["Response status", "Response Activated"], ["Notes", "Verify evacuation plans and shelter capacity"]].map(([label, value]) => <tr key={label} className="border-b border-line/60"><td className="w-1/3 px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-faint">{label}</td><td className="px-3 py-3 text-dim">{value}</td></tr>)}</tbody></table></div></section><section className="rounded-lg border border-line bg-panel p-4"><div className="font-display font-semibold">Response actions</div><div className="mt-4 space-y-2">{[["Send Alert", Bell, "Alerts"], ["Open Evacuation Plan", RouteIcon, "Evacuation"], ["View Risk Map", Map, "Risk Map"], ["Assign Response Team", Users, "Authorities"], ["Update Shelter", ShieldCheck, "Evacuation"], ["Mark Incident Resolved", Check, "Authorities"]].map(([label, Icon, target]) => <Button key={label as string} variant="outline" className="w-full justify-start" onClick={() => { if (target === "Authorities") toast.success(`${label} demo action recorded`); else onNavigate(target as View); }}><Icon />{label as string}</Button>)}</div></section></div></>; }
+
+function SettingsView() { return <><PageHeading eyebrow="SYSTEM CONFIGURATION · DEMO" title="Settings" description="Prototype configuration and role access for the academic demonstration environment." /><div className="grid gap-4 lg:grid-cols-2"><section className="rounded-lg border border-line bg-panel p-5"><div className="font-display font-semibold">Demo mode</div><div className="mt-4 flex items-center justify-between border-b border-line pb-4"><div><div className="text-sm">Simulated data and model output</div><div className="mt-1 text-xs text-dim">No external sensors, government feeds, or live dispatch are connected.</div></div><div className="rounded-full bg-safe/15 px-3 py-1 font-mono text-[10px] text-safe">ON</div></div><div className="mt-4 space-y-3 text-sm text-dim"><div className="flex justify-between"><span>Active role</span><span className="text-ink">Authority</span></div><div className="flex justify-between"><span>Dataset</span><span className="text-ink">Mountain region sample</span></div><div className="flex justify-between"><span>Prediction service</span><span className="text-safe">Demo formula ready</span></div></div></section><section className="rounded-lg border border-line bg-panel p-5"><div className="font-display font-semibold">Notification channels</div><div className="mt-4 space-y-3">{["SMS", "Mobile notification", "Messaging", "Authority dashboard"].map((channel) => <label key={channel} className="flex items-center justify-between border-b border-line/60 pb-3 text-sm text-dim"><span>{channel}</span><input type="checkbox" defaultChecked className="accent-signal" /></label>)}</div></section></div></>; }
