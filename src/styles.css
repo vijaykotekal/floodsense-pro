@@ -1,6 +1,6 @@
 @import "tailwindcss" source(none);
 @source "../src";
-@source inline("text-safe bg-safe border-safe text-signal bg-signal border-signal text-high bg-high border-high text-crit bg-crit border-crit text-water bg-water bg-high/15 bg-high/40 bg-signal/15 bg-signal/40 bg-safe/15 bg-safe/40 bg-crit/15 bg-high/90 bg-signal/90");
+@source inline("text-safe bg-safe border-safe text-signal bg-signal border-signal text-high bg-high border-high text-crit bg-crit border-crit text-water bg-water border-high/40 border-signal/40 bg-high/15 bg-high/40 bg-high/90 bg-signal/15 bg-signal/40 bg-safe/15 bg-safe/40 bg-crit/15 bg-high/90 bg-signal/90");
 @import "tw-animate-css";
 @import "leaflet/dist/leaflet.css";
 
